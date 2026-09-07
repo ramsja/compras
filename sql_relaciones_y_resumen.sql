@@ -2,25 +2,69 @@
 -- RELACIONES FÍSICAS (para el Schema Visualizer) +
 -- TABLA RESUMEN DE LA NORMALIZACIÓN (relación por relación)
 -- Proyecto: lkxqhutzlgkiiirtbohv (dashboard-Genius)
--- Fecha: 2026-09-07
+-- Fecha: 2026-09-07  ·  v2 (corrige error 23503: juego = '')
 --
--- REQUISITO: haber ejecutado antes sql_normalizacion_y_visualizacion.sql
+-- QUÉ CORRIGE ESTA VERSIÓN:
+--   7,016 transacciones (depósitos/retiros) tienen juego = ''
+--   (cadena vacía). La FK ignora NULL pero no ignora ''. Este
+--   script convierte '' → NULL, blinda el trigger para que no
+--   vuelva a entrar '', y entonces sí crea las FKs.
+--
+-- REQUISITO: haber ejecutado sql_normalizacion_y_visualizacion.sql
 -- CÓMO EJECUTAR: SQL Editor → New Query → pegar todo → Run
 --
--- DESPUÉS DE EJECUTAR, para VER las relaciones:
+-- DESPUÉS, para VER las relaciones:
 --   Menú izquierdo → Database → Schema Visualizer
---   (ahí verás el diagrama con las líneas entre tablas)
 -- ============================================================
+
+
+-- ============================================================
+-- PARTE 0: LIMPIEZA — cadenas vacías a NULL (7,016 filas)
+-- ============================================================
+UPDATE transacciones_novusbet SET juego = NULL            WHERE juego = '';
+UPDATE transacciones_novusbet SET casa_apuestas = NULL    WHERE casa_apuestas = '';
+UPDATE transacciones_novusbet SET tipo_transaccion = NULL WHERE tipo_transaccion = '';
+
+-- Blindaje: el trigger ahora también normaliza '' → NULL en cada
+-- insert nuevo, para que el pipeline nunca rompa las FKs.
+CREATE OR REPLACE FUNCTION fn_actualizar_dimensiones()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Normaliza cadenas vacías a NULL
+  NEW.juego            := NULLIF(NEW.juego, '');
+  NEW.casa_apuestas    := NULLIF(NEW.casa_apuestas, '');
+  NEW.tipo_transaccion := NULLIF(NEW.tipo_transaccion, '');
+
+  -- Registra valores nuevos en las dimensiones
+  IF NEW.casa_apuestas IS NOT NULL THEN
+    INSERT INTO dim_casa_apuestas (nombre) VALUES (NEW.casa_apuestas)
+    ON CONFLICT (nombre) DO NOTHING;
+  END IF;
+
+  IF NEW.juego IS NOT NULL THEN
+    INSERT INTO dim_juego (nombre, disciplina) VALUES (NEW.juego, NEW.disciplina)
+    ON CONFLICT (nombre) DO NOTHING;
+  END IF;
+
+  IF NEW.tipo_transaccion IS NOT NULL THEN
+    INSERT INTO dim_tipo_transaccion (nombre) VALUES (NEW.tipo_transaccion)
+    ON CONFLICT (nombre) DO NOTHING;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
 
 
 -- ============================================================
 -- PARTE 1: FOREIGN KEYS FÍSICAS
--- Se crean como NOT VALID = NO escanean las 600K filas al
--- crearse (instantáneo, sin bloqueo). Aplican a inserts nuevos,
--- y el Schema Visualizer las dibuja igual.
+-- NOT VALID = se crean al instante sin escanear las 600K filas;
+-- VALIDATE luego verifica el histórico (ya limpio).
 -- ============================================================
 
--- transacciones → dim_casa_apuestas
 ALTER TABLE transacciones_novusbet
   DROP CONSTRAINT IF EXISTS fk_trans_casa;
 ALTER TABLE transacciones_novusbet
@@ -28,7 +72,6 @@ ALTER TABLE transacciones_novusbet
   FOREIGN KEY (casa_apuestas) REFERENCES dim_casa_apuestas (nombre)
   NOT VALID;
 
--- transacciones → dim_juego
 ALTER TABLE transacciones_novusbet
   DROP CONSTRAINT IF EXISTS fk_trans_juego;
 ALTER TABLE transacciones_novusbet
@@ -36,7 +79,6 @@ ALTER TABLE transacciones_novusbet
   FOREIGN KEY (juego) REFERENCES dim_juego (nombre)
   NOT VALID;
 
--- transacciones → dim_tipo_transaccion
 ALTER TABLE transacciones_novusbet
   DROP CONSTRAINT IF EXISTS fk_trans_tipo;
 ALTER TABLE transacciones_novusbet
@@ -44,8 +86,6 @@ ALTER TABLE transacciones_novusbet
   FOREIGN KEY (tipo_transaccion) REFERENCES dim_tipo_transaccion (nombre)
   NOT VALID;
 
--- Valida el histórico completo (las dims ya contienen todos los
--- valores existentes, así que esto debe pasar sin errores).
 ALTER TABLE transacciones_novusbet VALIDATE CONSTRAINT fk_trans_casa;
 ALTER TABLE transacciones_novusbet VALIDATE CONSTRAINT fk_trans_juego;
 ALTER TABLE transacciones_novusbet VALIDATE CONSTRAINT fk_trans_tipo;
@@ -53,8 +93,7 @@ ALTER TABLE transacciones_novusbet VALIDATE CONSTRAINT fk_trans_tipo;
 
 -- ============================================================
 -- PARTE 2: TABLA RESUMEN DE LA NORMALIZACIÓN (1 a 1)
--- Cada fila documenta UNA relación del modelo. La ves en
--- Table Editor → resumen_normalizacion
+-- La ves en: Table Editor → resumen_normalizacion
 -- ============================================================
 
 DROP TABLE IF EXISTS resumen_normalizacion;
@@ -80,7 +119,7 @@ VALUES
 
   ('transacciones_novusbet', 'juego', 'dim_juego', 'nombre',
    'N:1', 'FK física', 'vn_transacciones',
-   'Cada transacción de juego referencia un juego del catálogo'),
+   'Cada transacción de juego referencia un juego del catálogo (NULL si es depósito/retiro)'),
 
   ('transacciones_novusbet', 'tipo_transaccion', 'dim_tipo_transaccion', 'nombre',
    'N:1', 'FK física', 'vn_transacciones',
@@ -119,8 +158,7 @@ GRANT SELECT ON resumen_normalizacion TO anon, authenticated, service_role;
 
 -- ============================================================
 -- PARTE 3: CONSULTA "VER RELACIONES EN VIVO"
--- Lista las FKs físicas reales que existen ahora en tu base.
--- Guárdala (Save) para consultarla cuando quieras.
+-- Lista las FKs físicas reales de tu base. Guárdala (Save).
 -- ============================================================
 SELECT
   tc.table_name        AS tabla_origen,
