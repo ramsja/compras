@@ -1,8 +1,38 @@
 # 📊 STATUS ACTUAL - Dashboard NovusBet Tiempo Real
 
-**Fecha**: 2026-09-07  
+**Fecha**: 2026-09-07 (verificado en vivo contra Supabase)  
 **Rama**: `claude/dashboard-reportes-tiempo-real-elogsq`  
-**Progreso Global**: 3/14 tareas (21%)
+**Proyecto Supabase**: `lkxqhutzlgkiiirtbohv` — ✅ ACTIVO Y CON DATOS
+
+---
+
+## ✅ ESTADO REAL DE SUPABASE (verificado 2026-09-07)
+
+El proyecto está **desplegado y operativo** con 25 tablas y ~650,000 registros:
+
+| Tabla | Registros | Notas |
+|-------|-----------|-------|
+| `transacciones_novusbet` | **~598,966** | Datos del 2026-03-02 al **2026-09-07 (HOY)** — pipeline activo |
+| `usuarios_novusbet` | 39,626 | Base de usuarios |
+| `ranking_historico_base` | 4,697 | Rankings |
+| `resumen_diario_juegos` | 1,716 | Agregados diarios por juego |
+| `resumen_diario_usuarios` | 1,638 | Agregados diarios por usuario |
+| `resumen_mensual_usuarios` | 650 | Agregados mensuales |
+| `apuestas_deportivas` | 318 | Apuestas deportivas |
+| `historico_csv_juegos` | 286 | Histórico CSV |
+| `perfil_apuestas_usuarios` | 199 | Perfiles de apuesta |
+| `game_stats` | 140 | Estadísticas de juegos |
+| `historico_csv_mensual` | 89 | Histórico mensual |
+| `top_games` | 70 | Top juegos |
+| `daily_metrics` / `daily_history` | 16 c/u | Métricas diarias (28-ago → 4-sep) |
+| `transaction_records` | 0 | Schema alterno (inglés), sin uso |
+| Catálogos (`disciplinas`, `estados_usuario`, etc.) | 4-5 c/u | Configuración |
+
+**Conexión validada**: URL + publishable key + secret key configuradas en `.env` ✅
+
+⚠️ **Pendientes detectados**:
+- Índices en `fecha` y `created_at` de `transacciones_novusbet` (consultas grandes dan timeout)
+- Conexión Google Looker Studio (Fase 2)
 
 ---
 
