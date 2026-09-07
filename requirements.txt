@@ -1,0 +1,19 @@
+# Web scraping y HTTP
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+
+# Variables de entorno
+python-dotenv>=1.0.0
+
+# Análisis de datos (opcional)
+pandas>=2.0.0
+
+# Base de datos (opcional, para BigQuery)
+google-cloud-bigquery>=3.13.0
+
+# Logging y monitoreo (opcional)
+sentry-sdk>=1.35.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
